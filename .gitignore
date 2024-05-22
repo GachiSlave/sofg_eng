@@ -1,3 +1,5 @@
 # created by virtualenv automatically
 video.mp4
-
+yolov8n.pt
+yolov4-tiny.weights
+yolov4-tiny.cfg

@@ -9,6 +9,18 @@ from ultralytics import YOLO
 
 model = YOLO('yolov8n.pt')
 
+#Здесь обязательно нужен Токен и чат-id
+TOKEN = "YOUR_TOKEN"
+chat_id = "YOUR_CHAT_ID"
+
+def send_photo_file(chat_id, img):
+    files = {'photo': open(img, 'rb')}
+    requests.post(f'https://api.telegram.org/bot{TOKEN}/sendPhoto?chat_id={chat_id}', files=files)
+
+#Функция для отправки сообщения в телеграм
+def send_telegram_message(message):
+    requests.get(f'https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id={chat_id}&text={message}').json()
+
 def calculate_iou(box, boxes, box_area, boxes_area):
     #Считаем IoU
     y1 = np.maximum(box[0], boxes[:, 0])
@@ -46,9 +58,7 @@ def draw_bbox(x, y, w, h, parking_text, parking_color=(0, 255, 0)):
     text = parking_text
     final_image = cv2.putText(final_image, text, start, font, font_size, color, width, cv2.LINE_AA)
     return final_image
-# ##### Пути до конфигурации и весов модели
-# path_conf = "./yolov4-tiny.cfg"
-# path_weights = "./yolov4-tiny.weights"
+
 
 #Парковочные места
 first_frame_parking_spaces = None
@@ -61,22 +71,18 @@ free_parking_space = False
 free_parking_space_box = None
 check_det_frame = None
 
+#Сообщение в телеграм?
+telegram_message = False
+
 #Классы которые распознает YOLO
 path_coco_names = "./coco.names.txt"
-
-#image_to_process = cv2.imread('C:\\Users\\user\\PycharmProjects\cv_project\\a56b3861-8b30-4516-bfbb-10472c77f5d4.png')
 
 video_path = './video.mp4'
 
 
-# results = model.predict(image_to_process)
-# frame_ = results[0].plot()
-# print(results[0].boxes.conf)
-# print(results[0].boxes.cls)
 
-# for i in results[0].boxes.conf.numpy():
-#     print('conf: ',i)
 video_capture = cv2.VideoCapture(video_path)
+
 # Пока не нажата клавиша q функция будет работать
 # isOpened() Возвращает true, если захват видео уже инициализирован.
 while video_capture.isOpened():
@@ -90,31 +96,17 @@ while video_capture.isOpened():
 
     class_indexes, class_scores, boxes = ([] for i in range(3))
     for class_index in results[0].boxes:
-        #print('cls: ', class_index)
         if class_index.cls.numpy() == 2:
-            #print(class_index)
-            #class_score = scores[class_index]
             box = class_index.xywh.numpy().astype(int)[0].tolist()
             box = [box[0] - box[2] // 2, box[1]  - box[3]  // 2,
                    box[2], box[3]]
             boxes.append(box)
             class_scores.append(float(class_index.conf ))
-            # if class_score > 0:
-    #first_frame_parking_spaces = boxes
-
-    # print((boxes))
-    # print((boxes[0]))
-    # print((boxes[0][0]))
-    # print(type(boxes))
-    # print(type(boxes[0]))
-    # print(type(boxes[0][0]))
-    # print((boxes[0][0]))
 
     if not first_frame_parking_spaces:
         # Предполагаем, что под каждой машиной будет парковочное место
         first_frame_parking_spaces = boxes
         first_frame_parking_score = class_scores
-        #print('first_frame_parking_spaces')
 
 
     else:
@@ -182,17 +174,17 @@ while video_capture.isOpened():
 
                         free_parking_space = False
                         telegram_message = False
-                        #
-                        # # Отправка сообщения боту в телеграмм
-                        # if not telegram_message:
-                        #     screenshot_parking_space = final_image
-                        #     # отправим в телеграм
-                        #     message_tel = 'Где ты ездишь??? Место уже занято :('
-                        #     send_telegram_message(message_tel)
-                        #     cv2.imwrite('./image_test_not_free.png', screenshot_parking_space)
-                        #     send_photo_file(chat_id, './image_test_not_free.png')
-                        #
-                        #     telegram_message = True
+
+                        # Отправка сообщения боту в телеграмм
+                        if not telegram_message:
+                            screenshot_parking_space = final_image
+                            # отправим в телеграм
+                            message_tel = 'Где ты ездишь??? Место уже занято :('
+                            send_telegram_message(message_tel)
+                            cv2.imwrite('./image_test_not_free.png', screenshot_parking_space)
+                            send_photo_file(chat_id, './image_test_not_free.png')
+
+                            telegram_message = True
 
     ###ПАРКОВОЧНЫЕ МЕСТА
     # Отрисовка BB парковочных мест
@@ -212,15 +204,15 @@ while video_capture.isOpened():
                 final_image = draw_bbox(x, y, w, h, parking_text)
 
             # Отправка сообщения боту в телеграмм
-            # if not telegram_message:
-            #     # Скриншот свободного места, отправим в телеграм
-            #     screenshot_parking_space = final_image
-            #     message_tel = 'Свободное место! Давай, жми скорее!!!'
-            #     send_telegram_message(message_tel)
-            #     cv2.imwrite('./image_test_free.png', screenshot_parking_space)
-            #     send_photo_file(chat_id, './image_test_free.png')
-            #
-            #     telegram_message = True
+            if not telegram_message:
+                # Скриншот свободного места, отправим в телеграм
+                screenshot_parking_space = final_image
+                message_tel = 'Свободное место! Давай, жми скорее!!!'
+                send_telegram_message(message_tel)
+                cv2.imwrite('./image_test_free.png', screenshot_parking_space)
+                send_photo_file(chat_id, './image_test_free.png')
+
+                telegram_message = True
 
         else:
             # Координаты и размеры BB

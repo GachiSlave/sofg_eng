@@ -1,5 +1,21 @@
 # created by virtualenv automatically
-video.mp4
-yolov8n.pt
-yolov4-tiny.weights
-yolov4-tiny.cfg
+# Python files
+*.pyc
+*.pkl
+*.pt
+__pycache__/
+.pytest_cache/
+*.pyo
+
+# Virtual environment
+.venv/
+
+# Others
+.env
+
+nul
+
+/image_test_free.png
+/image_test_not_free.png
+/video.mp4
+/yolov8n.pt

@@ -1,50 +1,48 @@
-#Библиотеки
 import cv2
-import requests
 import numpy as np
 import pandas as pd
 from art import tprint
 import matplotlib.pylab as plt
-
+import requests
 from ultralytics import YOLO
 
-
-import requests
-
-
-
+# Загрузка конфигурации телеграм-бота и видео
 with open('config.yaml', 'r') as file:
     config = yaml.safe_load(file)
 
-
-##Здесь обязательно нужен Токен и чат-id
 TOKEN = config['telegram']['TOKEN']
 chat_id = config['telegram']['chat_id']
 video_path = config['video']['path']
+
+# Загрузка предварительно обученной YOLOv8 модели
+model = YOLO('yolov8n.pt')
+
+
+# Отправка сообщения в телеграм
+def send_message(token, chat_id, message):
+    requests.get(f'https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={message}')
+
 
 # Отправка фото в телеграм
 def send_photo(token, chat_id, img_path):
     files = {'photo': open(img_path, 'rb')}
     requests.post(f'https://api.telegram.org/bot{token}/sendPhoto?chat_id={chat_id}', files=files)
 
-# Отправка сообщения в телеграм
-def send_message(token, chat_id, message):
-    requests.get(f'https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={message}')
 
+# Расчет IoU
 def calculate_iou(box, boxes, box_area, boxes_area):
-    #Считаем IoU
     y1 = np.maximum(box[0], boxes[:, 0])
-    y2 = np.minimum(box[2]+box[0], boxes[:, 2]+boxes[:, 0])
+    y2 = np.minimum(box[2] + box[0], boxes[:, 2] + boxes[:, 0])
     x1 = np.maximum(box[1], boxes[:, 1])
-    x2 = np.minimum(box[3]+box[1], boxes[:, 3]+boxes[:, 1])
+    x2 = np.minimum(box[3] + box[1], boxes[:, 3] + boxes[:, 1])
     intersection = np.maximum(x2 - x1, 0) * np.maximum(y2 - y1, 0)
     union = box_area + boxes_area[:] - intersection[:]
     iou = intersection / union
     return iou
 
-#Функция для расчета персечения всех со всеми через IoU
+
+# Расчет пересечения рамок
 def compute_overlaps(boxes1, boxes2):
-    #Areas of anchors and GT boxes
     area1 = boxes1[:, 2] * boxes1[:, 3]
     area2 = boxes2[:, 2] * boxes2[:, 3]
     overlaps = np.zeros((boxes1.shape[0], boxes2.shape[0]))
@@ -53,6 +51,8 @@ def compute_overlaps(boxes1, boxes2):
         overlaps[:, i] = calculate_iou(box2, boxes1, area2[i], area1)
     return overlaps
 
+
+# Отрисовка рамок
 def draw_bbox(x, y, w, h, parking_text, parking_color=(0, 255, 0)):
     start = (x, y)
     end = (x + w, y + h)
@@ -60,8 +60,6 @@ def draw_bbox(x, y, w, h, parking_text, parking_color=(0, 255, 0)):
     width = 2
     final_image = cv2.rectangle(image_to_process, start, end, color, width)
 
-
-    # Подпись BB
     start = (x, y - 10)
     font_size = 0.4
     font = cv2.FONT_HERSHEY_SIMPLEX
@@ -71,28 +69,21 @@ def draw_bbox(x, y, w, h, parking_text, parking_color=(0, 255, 0)):
     return final_image
 
 
-
-
-#Парковочные м еста
+# Парковочные места
+check_det_frame = None
 first_frame_parking_spaces = None
-
+first_parking_timer = 0
+free_parking_count = 0
 free_parking_timer = 0
 free_parking_timer_bag1 = 0
-free_parking_count = 0
-first_parking_timer = 0
 free_parking_space = False
 free_parking_space_box = None
-check_det_frame = None
 
-#Сообщение в телеграм?
+# Сообщение в телеграм
 telegram_message = False
 
-#Классы которые распознает YOLO
-path_coco_names = "./coco.names.txt"
 
 video_path = './video.mp4'
-
-
 
 video_capture = cv2.VideoCapture(video_path)
 
@@ -111,10 +102,10 @@ while video_capture.isOpened():
     for class_index in results[0].boxes:
         if class_index.cls.numpy() == 2:
             box = class_index.xywh.numpy().astype(int)[0].tolist()
-            box = [box[0] - box[2] // 2, box[1]  - box[3]  // 2,
+            box = [box[0] - box[2] // 2, box[1] - box[3] // 2,
                    box[2], box[3]]
             boxes.append(box)
-            class_scores.append(float(class_index.conf ))
+            class_scores.append(float(class_index.conf))
 
     if not first_frame_parking_spaces:
         # Предполагаем, что под каждой машиной будет парковочное место
@@ -125,9 +116,8 @@ while video_capture.isOpened():
     else:
         chosen_cars_boxes = cv2.dnn.NMSBoxes(boxes, class_scores, 0.0, 0.4)
         cars_area = []
-        ###МАШИНЫ
+        # МАШИНЫ
         for box_index in chosen_cars_boxes:
-
             car_box = boxes[box_index]
             cars_area.append(car_box)
 
@@ -136,7 +126,7 @@ while video_capture.isOpened():
             final_image = draw_bbox(x, y, w, h, parking_text, (255, 255, 0))
         cars_boxes = cars_area
 
-            ###IoU
+        # IoU
         overlaps = compute_overlaps(np.array(parking_spaces), np.array(cars_boxes))
 
         for parking_space_one, area_overlap in zip(parking_spaces, overlaps):
@@ -193,13 +183,14 @@ while video_capture.isOpened():
                             screenshot_parking_space = final_image
                             # отправим в телеграм
                             message_tel = 'Где ты ездишь??? Место уже занято :('
-                            send_telegram_message(message_tel)
+                            send_message(message_tel)
                             cv2.imwrite('./image_test_not_free.png', screenshot_parking_space)
-                            send_photo_file(chat_id, './image_test_not_free.png')
+                            send_photo(chat_id, './image_test_not_free.png')
 
                             telegram_message = True
 
-    ###ПАРКОВОЧНЫЕ МЕСТА
+
+    # ПАРКОВОЧНЫЕ МЕСТА
     # Отрисовка BB парковочных мест
     chosen_boxes = cv2.dnn.NMSBoxes(first_frame_parking_spaces,
                                     first_frame_parking_score, 0.0, 0.4)
@@ -221,9 +212,9 @@ while video_capture.isOpened():
                 # Скриншот свободного места, отправим в телеграм
                 screenshot_parking_space = final_image
                 message_tel = 'Свободное место! Давай, жми скорее!!!'
-                send_telegram_message(message_tel)
+                send_message(message_tel)
                 cv2.imwrite('./image_test_free.png', screenshot_parking_space)
-                send_photo_file(chat_id, './image_test_free.png')
+                send_photo(chat_id, './image_test_free.png')
 
                 telegram_message = True
 

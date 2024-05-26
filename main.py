@@ -73,11 +73,11 @@ x_free, y_free, w_free, h_free = 0, 0, 0, 0
 # Работа модели с отображением результатов на видео, пока не нажата клавиша q
 while video_capture.isOpened():
     ret, image_to_process = video_capture.read()
-
-    height, width, _ = image_to_process.shape
+    if not ret:
+        break
 
     # Определение класса машин ("2") в COCO
-    results = model.track(image_to_process, persist=False)
+    results = model.predict(image_to_process)
     detections = results[0].boxes
     class_indexes, class_scores, boxes = ([] for i in range(3))
     for class_index in detections:

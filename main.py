@@ -5,15 +5,15 @@ from ultralytics import YOLO
 import yaml
 
 # Загрузка конфигурации телеграм-бота и видео
-with open('config.yaml', 'r') as file:
+with open("config.yaml", "r") as file:
     config = yaml.safe_load(file)
 
-TOKEN = config['telegram']['TOKEN']
-chat_id = config['telegram']['chat_id']
-video_path = config['video']['path']
+TOKEN = config["telegram"]["TOKEN"]
+chat_id = config["telegram"]["chat_id"]
+video_path = config["video"]["path"]
 
 # Загрузка предварительно обученной YOLOv8 модели
-model = YOLO('yolov8n.pt')
+model = YOLO("yolov8n.pt")
 
 
 # Расчет IoU
@@ -40,7 +40,7 @@ def compute_overlaps(boxes1, boxes2):
 
 
 # Отрисовка рамок
-def draw_bbox(x, y, w, h, parking_text, parking_color=(0, 255, 0)):
+def draw_bbox(x, y, w, h, parking_text, parking_color=(0, 0, 255)):
     start = (x, y)
     end = (x + w, y + h)
     color = parking_color
@@ -52,19 +52,25 @@ def draw_bbox(x, y, w, h, parking_text, parking_color=(0, 255, 0)):
     font = cv2.FONT_HERSHEY_SIMPLEX
     width = 1
     text = parking_text
-    final_image = cv2.putText(final_image, text, start, font, font_size, color, width, cv2.LINE_AA)
+    final_image = cv2.putText(
+        final_image, text, start, font, font_size, color, width, cv2.LINE_AA
+    )
     return final_image
 
 
 # Отправка сообщения в телеграм
 def send_message(token, chat_id, message):
-    requests.get(f'https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={message}')
+    requests.get(
+        f"https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={message}"
+    )
 
 
 # Отправка фото в телеграм
 def send_photo(token, chat_id, img_path):
-    files = {'photo': open(img_path, 'rb')}
-    requests.post(f'https://api.telegram.org/bot{token}/sendPhoto?chat_id={chat_id}', files=files)
+    files = {"photo": open(img_path, "rb")}
+    requests.post(
+        f"https://api.telegram.org/bot{token}/sendPhoto?chat_id={chat_id}", files=files
+    )
 
 
 # Парковочные места
@@ -80,7 +86,7 @@ free_parking_space_box = None
 # Сообщение в телеграм
 telegram_message = False
 
-video_path = './video.mp4'
+video_path = "./video.mp4"
 
 video_capture = cv2.VideoCapture(video_path)
 
@@ -99,8 +105,7 @@ while video_capture.isOpened():
     for class_index in results[0].boxes:
         if class_index.cls.numpy() == 2:
             box = class_index.xywh.numpy().astype(int)[0].tolist()
-            box = [box[0] - box[2] // 2, box[1] - box[3] // 2,
-                   box[2], box[3]]
+            box = [box[0] - box[2] // 2, box[1] - box[3] // 2, box[2], box[3]]
             boxes.append(box)
             class_scores.append(float(class_index.conf))
 
@@ -108,7 +113,6 @@ while video_capture.isOpened():
         # Предполагаем, что под каждой машиной будет парковочное место
         first_frame_parking_spaces = boxes
         first_frame_parking_score = class_scores
-
 
     else:
         chosen_cars_boxes = cv2.dnn.NMSBoxes(boxes, class_scores, 0.0, 0.4)
@@ -119,7 +123,7 @@ while video_capture.isOpened():
             cars_area.append(car_box)
 
             x, y, w, h = car_box
-            parking_text = 'Car'
+            parking_text = "Car"
             final_image = draw_bbox(x, y, w, h, parking_text, (255, 255, 0))
         cars_boxes = cars_area
 
@@ -131,7 +135,7 @@ while video_capture.isOpened():
             max_IoU = max(area_overlap)
             sort_IoU = np.sort(area_overlap[area_overlap > 0])[::-1]
 
-            if free_parking_space == False:
+            if not free_parking_space:
                 if 0.0 < max_IoU < 0.4:
                     # Количество паркомест по условию 1: 0.0 < IoU < 0.4
                     len_sort = len(sort_IoU)
@@ -141,11 +145,13 @@ while video_capture.isOpened():
                     len_sort_2 = len(sort_IoU_2)
 
                     # Смотрим чтобы удовлятворяло условию 1 и условию 2
-                    if (check_det_frame == parking_space_one) & (len_sort != len_sort_2):
+                    if (check_det_frame == parking_space_one) & (
+                        len_sort != len_sort_2
+                    ):
                         # Начинаем считать кадры подряд с пустыми координатами
                         free_parking_timer += 1
 
-                    elif check_det_frame == None:
+                    elif check_det_frame is None:
                         check_det_frame = parking_space_one
 
                     else:
@@ -165,58 +171,62 @@ while video_capture.isOpened():
                         x_free, y_free, w_free, h_free = parking_space_one
 
             else:
-                # Если место занимают, то помечается как отсутствие свободных мест
-                overlaps = compute_overlaps(np.array([free_parking_space_box]), np.array(cars_boxes))
-                for area_overlap in overlaps:
-                    max_IoU = max(area_overlap)
+                # Освободившееся место заняли
+                overlaps = compute_overlaps(
+                    np.array([free_parking_space_box]), np.array(cars_boxes)
+                )
+                for area in overlaps:
+                    max_IoU = max(area)
                     if max_IoU > 0.6:
 
                         free_parking_space = False
                         telegram_message = False
 
-                        # Отправка сообщения боту в телеграмм
-                        if not telegram_message:
-                            screenshot_parking_space = final_image
-                            # отправим в телеграм
-                            message_tel = 'Где ты ездишь??? Место уже занято :('
-                            send_message(message_tel)
-                            cv2.imwrite('./image_test_not_free.png', screenshot_parking_space)
-                            send_photo(chat_id, './image_test_not_free.png')
+                        # Отправка сообщения телеграмм-ботом о занятом месте
+                        screenshot_parking_space = final_image
+                        message = "Где ты ездишь??? Место уже занято :("
+                        path = "./image_test_not_free.png"
+                        send_message(TOKEN, chat_id, message)
+                        cv2.imwrite(path, screenshot_parking_space)
+                        send_photo(TOKEN, chat_id, path)
 
-                            telegram_message = True
-
-    # ПАРКОВОЧНЫЕ МЕСТА
-    # Отрисовка BB парковочных мест
-    chosen_boxes = cv2.dnn.NMSBoxes(first_frame_parking_spaces,
-                                    first_frame_parking_score, 0.0, 0.4)
+    # Распознавание парковочных мест
+    chosen_boxes = cv2.dnn.NMSBoxes(
+        first_frame_parking_spaces, first_frame_parking_score, 0.0, 0.4
+    )
     parking_spaces = []
+
     for box_index in chosen_boxes:
         box = first_frame_parking_spaces[box_index]
         # Если определилось пустое место, то отрисуем его в кадре
         if free_parking_space:
+
             if box == [x_free, y_free, w_free, h_free]:
-                parking_text = 'FREE SPACE!!!'
-                final_image = draw_bbox(x_free, y_free, w_free, h_free, parking_text, (0, 0, 255))
+                parking_text = "FREE SPACE!!!"
+                final_image = draw_bbox(
+                    x_free, y_free, w_free, h_free, parking_text, (0, 255, 0)
+                )
+
+                # Отправка сообщения телеграмм-ботом о свободном мест
+                if not telegram_message:
+                    # Скриншот свободного места
+                    screenshot_parking_space = final_image
+                    message = "Свободное место! Давай, жми скорее!!!"
+                    path = "./image_test_free.png"
+                    send_message(TOKEN, chat_id, message)
+                    cv2.imwrite(path, screenshot_parking_space)
+                    send_photo(TOKEN, chat_id, path)
+
+                    telegram_message = True
             else:
                 x, y, w, h = box
-                parking_text = 'No parking'
+                parking_text = "No parking"
                 final_image = draw_bbox(x, y, w, h, parking_text)
-
-            # Отправка сообщения боту в телеграмм
-            if not telegram_message:
-                # Скриншот свободного места, отправим в телеграм
-                screenshot_parking_space = final_image
-                message_tel = 'Свободное место! Давай, жми скорее!!!'
-                send_message(message_tel)
-                cv2.imwrite('./image_test_free.png', screenshot_parking_space)
-                send_photo(chat_id, './image_test_free.png')
-
-                telegram_message = True
 
         else:
             # Координаты и размеры BB
             x, y, w, h = box
-            parking_text = 'No parking'
+            parking_text = "No parking"
             final_image = draw_bbox(x, y, w, h, parking_text)
 
         # Координаты парковочных мест с первого кадры
@@ -225,8 +235,9 @@ while video_capture.isOpened():
     cv2.imshow("Parking Space", final_image)
 
     # Прерывание работы клавишей q
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        # Очищаем всё после завершения.
-        video_capture.release()
-        cv2.destroyAllWindows()
+    if cv2.waitKey(1) & 0xFF == ord("q"):
         break
+
+# Закрытие всех окон с кадрами после завершения
+video_capture.release()
+cv2.destroyAllWindows()

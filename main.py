@@ -8,19 +8,28 @@ import matplotlib.pylab as plt
 
 from ultralytics import YOLO
 
-model = YOLO('yolov8n.pt')
 
-#Здесь обязательно нужен Токен и чат-id
-TOKEN = "YOUR_TOKEN"
-chat_id = "YOUR_CHAT_ID"
+import requests
 
-def send_photo_file(chat_id, img):
-    files = {'photo': open(img, 'rb')}
-    requests.post(f'https://api.telegram.org/bot{TOKEN}/sendPhoto?chat_id={chat_id}', files=files)
 
-#Функция для отправки сообщения в телеграм
-def send_telegram_message(message):
-    requests.get(f'https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id={chat_id}&text={message}').json()
+
+with open('config.yaml', 'r') as file:
+    config = yaml.safe_load(file)
+
+
+##Здесь обязательно нужен Токен и чат-id
+TOKEN = config['telegram']['TOKEN']
+chat_id = config['telegram']['chat_id']
+video_path = config['video']['path']
+
+# Отправка фото в телеграм
+def send_photo(token, chat_id, img_path):
+    files = {'photo': open(img_path, 'rb')}
+    requests.post(f'https://api.telegram.org/bot{token}/sendPhoto?chat_id={chat_id}', files=files)
+
+# Отправка сообщения в телеграм
+def send_message(token, chat_id, message):
+    requests.get(f'https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={message}')
 
 def calculate_iou(box, boxes, box_area, boxes_area):
     #Считаем IoU

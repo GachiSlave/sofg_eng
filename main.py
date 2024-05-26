@@ -1,8 +1,9 @@
 import cv2
 import numpy as np
-import requests
-from ultralytics import YOLO
 import yaml
+from ultralytics import YOLO
+from detection import compute_overlaps, draw_bbox
+from telegram_utils import send_photo, send_message
 
 # Загрузка конфигурации телеграм-бота и видео
 with open('config.yaml', 'r') as file:
@@ -14,49 +15,6 @@ video_path = config['video']['path']
 
 # Загрузка предварительно обученной YOLOv8 модели
 model = YOLO('yolov8n.pt')
-
-
-# Расчет IoU
-def calculate_iou(box, boxes, box_area, boxes_area):
-    y1 = np.maximum(box[0], boxes[:, 0])
-    y2 = np.minimum(box[2] + box[0], boxes[:, 2] + boxes[:, 0])
-    x1 = np.maximum(box[1], boxes[:, 1])
-    x2 = np.minimum(box[3] + box[1], boxes[:, 3] + boxes[:, 1])
-    intersection = np.maximum(x2 - x1, 0) * np.maximum(y2 - y1, 0)
-    union = box_area + boxes_area[:] - intersection[:]
-    iou = intersection / union
-    return iou
-
-
-# Расчет пересечения рамок
-def compute_overlaps(boxes1, boxes2):
-    area1 = boxes1[:, 2] * boxes1[:, 3]
-    area2 = boxes2[:, 2] * boxes2[:, 3]
-    overlaps = np.zeros((boxes1.shape[0], boxes2.shape[0]))
-    for i in range(overlaps.shape[1]):
-        box2 = boxes2[i]
-        overlaps[:, i] = calculate_iou(box2, boxes1, area2[i], area1)
-    return overlaps
-
-
-# Отрисовка рамок
-def draw_bbox(image, x, y, w, h, text, color=(0, 0, 255)):
-    start, end = (x, y), (x + w, y + h)
-    cv2.rectangle(image, start, end, color, 2)
-    cv2.putText(image, text, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1, cv2.LINE_AA)
-    return image
-
-
-# Отправка сообщения в телеграм
-def send_message(token, chat_id, message):
-    requests.get(f'https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={message}')
-
-
-# Отправка фото в телеграм
-def send_photo(token, chat_id, img_path):
-    files = {'photo': open(img_path, 'rb')}
-    requests.post(f'https://api.telegram.org/bot{token}/sendPhoto?chat_id={chat_id}', files=files)
-
 
 video_capture = cv2.VideoCapture(video_path)
 check_det_frame = None
@@ -142,7 +100,7 @@ while video_capture.isOpened():
 
                     # Условие освободившегося места (10 кадров подряд)
                     if free_parking_timer == 10:
-                        # Помечаем свободное место
+                        # Пометка свободного места
                         free_parking_space = True
                         free_parking_space_box = parking_space_one
                         # Отрисовка рамки освободившегося парковочного места
@@ -191,6 +149,7 @@ while video_capture.isOpened():
                     send_photo(TOKEN, chat_id, path)
 
                     telegram_message = True
+
             else:
                 # Координаты и размеры парковочного места
                 x, y, w, h = box

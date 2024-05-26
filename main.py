@@ -1,10 +1,8 @@
 import cv2
 import numpy as np
-import pandas as pd
-from art import tprint
-import matplotlib.pylab as plt
 import requests
 from ultralytics import YOLO
+import yaml
 
 # Загрузка конфигурации телеграм-бота и видео
 with open('config.yaml', 'r') as file:
@@ -16,17 +14,6 @@ video_path = config['video']['path']
 
 # Загрузка предварительно обученной YOLOv8 модели
 model = YOLO('yolov8n.pt')
-
-
-# Отправка сообщения в телеграм
-def send_message(token, chat_id, message):
-    requests.get(f'https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={message}')
-
-
-# Отправка фото в телеграм
-def send_photo(token, chat_id, img_path):
-    files = {'photo': open(img_path, 'rb')}
-    requests.post(f'https://api.telegram.org/bot{token}/sendPhoto?chat_id={chat_id}', files=files)
 
 
 # Расчет IoU
@@ -69,6 +56,17 @@ def draw_bbox(x, y, w, h, parking_text, parking_color=(0, 255, 0)):
     return final_image
 
 
+# Отправка сообщения в телеграм
+def send_message(token, chat_id, message):
+    requests.get(f'https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={message}')
+
+
+# Отправка фото в телеграм
+def send_photo(token, chat_id, img_path):
+    files = {'photo': open(img_path, 'rb')}
+    requests.post(f'https://api.telegram.org/bot{token}/sendPhoto?chat_id={chat_id}', files=files)
+
+
 # Парковочные места
 check_det_frame = None
 first_frame_parking_spaces = None
@@ -81,7 +79,6 @@ free_parking_space_box = None
 
 # Сообщение в телеграм
 telegram_message = False
-
 
 video_path = './video.mp4'
 
@@ -148,7 +145,6 @@ while video_capture.isOpened():
                         # Начинаем считать кадры подряд с пустыми координатами
                         free_parking_timer += 1
 
-
                     elif check_det_frame == None:
                         check_det_frame = parking_space_one
 
@@ -188,7 +184,6 @@ while video_capture.isOpened():
                             send_photo(chat_id, './image_test_not_free.png')
 
                             telegram_message = True
-
 
     # ПАРКОВОЧНЫЕ МЕСТА
     # Отрисовка BB парковочных мест

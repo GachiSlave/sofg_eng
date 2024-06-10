@@ -40,4 +40,10 @@ pytest tests/
 python -m unittest discover -s tests
 ```
 
+#### 6. Запуск в Docker:
+Замените `your-image-name`, `your_token`, `your_chat_id` на Ваши данные.
+```
+docker build -t your-image-name .
+docker run -e TOKEN='your_token' -e CHAT_ID='your_chat_id' your-image-name               
+```
 [![Typing SVG](https://readme-typing-svg.herokuapp.com?font=Fira+Code&duration=2000&pause=1000&color=1141f7&random=false&width=600&lines=You're+breathtaking!+%E2%9C%A8)](https://git.io/typing-svg)

@@ -4,4 +4,4 @@ telegram:
   chat_id: "YOUR_CHAT_ID"
 # Видео (поставьте 0 для камеры или путь до видео)
 video:
-  path: './video.mp4'
+  path: "./video.mp4"

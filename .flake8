@@ -1,0 +1,21 @@
+[flake8]
+ignore = C901, E402, E501
+exclude =
+    *.pyc,
+    *.pkl,
+    *.pt,
+    __pycache__,
+    tests/__pycache__,
+    .pytest_cache,
+    *.pyo,
+    venv,
+    .venv,
+    env,
+    .env,
+    nul,
+    image_test_free.png,
+    image_test_not_free.png,
+    video.mp4,
+    yolov8n.pt
+max-complexity = 10
+max-line-length = 127
